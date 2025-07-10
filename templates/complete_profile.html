@@ -1,0 +1,570 @@
+{% extends "base.html" %}
+{% set hide_nav_title = True %}
+{% block title %}Complete Profile{% endblock %}
+
+{% block content %}
+<style>
+  .form-card {
+    max-width: 600px;
+    margin: 0 auto;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  .card-header h4 {
+    color: white;
+    margin: 0;
+    padding: 0.5rem;
+  }
+  input[readonly], input[disabled] {
+    background-color: #e9ecef !important;
+  }
+  .position-relative { position: relative; }
+  .remove-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    color: #dc3545;
+  }
+  .is-invalid {
+    border-color: #dc3545 !important;
+    background-color: #f8d7da !important;
+  }
+</style>
+
+<div class="container-fluid px-3">
+  <div class="card mt-0 form-card">
+    <div class="card-header text-center" style="background-color: #042351;">
+      <h4>Complete Your Profile</h4>
+    </div>
+    <div class="card-body">
+      <form method="POST" id="profileForm" novalidate autocomplete="off">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- BASIC INFO (Always required) -->
+        <div class="mb-3">
+          <label class="fw-bold">Name</label>
+          <input name="name" class="form-control" value="{{ employee.name }}" {% if not is_admin %}readonly{% endif %} required>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Phone</label>
+          <input name="phone" class="form-control" pattern="\d{10}" maxlength="10" title="Enter exactly 10 digits" value="{{ employee.phone }}" {% if not is_admin %}readonly{% endif %} required>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Employee Code</label>
+          <input name="employee_id" class="form-control" value="{{ employee.employee_id }}" required {% if readonly %}readonly{% endif %}>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Designation</label>
+          <input name="designation" class="form-control" value="{{ employee.designation }}" required {% if readonly %}readonly{% endif %}>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Department</label>
+          <input name="department" class="form-control" value="{{ employee.department }}" required {% if readonly %}readonly{% endif %}>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Email</label>
+          <input name="email" type="email" class="form-control" value="{{ employee.email }}" required {% if readonly %}readonly{% endif %}>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Date of Joining</label>
+          <input name="date_of_joining" type="date" class="form-control" id="joiningDate" value="{{ employee.date_of_joining }}" required {% if readonly %}readonly{% endif %}>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Date of Birth</label>
+          <input name="dob" type="date" class="form-control" id="emp_dob" value="{{ employee.dob }}" required {% if readonly %}readonly{% endif %}>
+          <div id="emp-dob-error" class="text-danger" style="display: none;">Must be at least 18 years old.</div>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Age</label>
+          <input name="age" class="form-control" readonly value="{{ employee.age }}">
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Gender</label>
+          <select name="gender" class="form-control" required {% if readonly %}disabled{% endif %}>
+            <option value="">-- Select --</option>
+            <option value="Male"   {% if employee.gender=='Male' %}selected{% endif %}>Male</option>
+            <option value="Female" {% if employee.gender=='Female' %}selected{% endif %}>Female</option>
+            <option value="Other"  {% if employee.gender=='Other' %}selected{% endif %}>Other</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="fw-bold">Marital Status</label>
+          <select name="marital_status" id="marital_status" class="form-control" onchange="toggleFamilyFields()" required {% if readonly %}disabled{% endif %}>
+            <option value="">-- Select --</option>
+            <option value="unmarried" {% if employee.marital_status=='unmarried' %}selected{% endif %}>Unmarried</option>
+            <option value="married" {% if employee.marital_status=='married' %}selected{% endif %}>Married</option>
+            <option value="divorced/widowed" {% if employee.marital_status=='divorced/widowed' %}selected{% endif %}>Divorced/Widowed</option>
+          </select>
+        </div>
+
+        <!-- SPOUSE SECTION -->
+        <div id="spouseSection" style="display:none;">
+          <h5>Spouse Details</h5>
+          <div class="mb-3">
+            <label class="fw-bold">Name</label>
+            <input name="spouse_name" class="form-control" value="{{ employee.spouse.name }}">
+          </div>  
+          <div class="mb-3">
+            <label class="fw-bold">Date of Birth</label>
+            <input name="spouse_dob" type="date" id="spouse_dob" class="form-control" value="{{ employee.spouse.date_of_birth }}">
+            <div id="spouse-dob-error" class="text-danger" style="display: none;">Must be at least 18 years old.</div>
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold">Age</label>
+            <input name="spouse_age" class="form-control" readonly value="{{ employee.spouse.age }}">
+          </div>
+          <div class="mb-3">
+            <label class="fw-bold">Gender</label>
+            <select name="spouse_gender" class="form-control">
+              <option value="">-- Select --</option>
+              <option value="Male"   {% if employee.spouse.gender=='Male' %}selected{% endif %}>Male</option>
+              <option value="Female" {% if employee.spouse.gender=='Female' %}selected{% endif %}>Female</option>
+              <option value="Other"  {% if employee.spouse.gender=='Other' %}selected{% endif %}>Other</option>
+            </select>
+          </div>
+        </div>
+         
+        <!-- CHILDREN SECTION -->
+        <div id="childrenSection" style="display:none;">
+          <h5>Children</h5>
+          <div id="childrenList">
+            {% for child in employee.children %}
+            <div class="position-relative mb-3 child-entry">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="fw-bold mb-0">Child {{ loop.index }}</label>
+                <button type="button" class="remove-btn" {% if readonly %}disabled{% endif %}>🗑️</button>
+              </div>
+              <label class="fw-bold">Name</label>
+              <input name="child_name_{{ loop.index0 }}" class="form-control mb-2" value="{{ child.name }}" placeholder="Name">
+              <label class="fw-bold">Date of Birth</label>
+              <input name="child_dob_{{ loop.index0 }}" type="date" class="form-control mb-2" value="{{ child.date_of_birth }}" onchange="calculateChildAge(this, {{ loop.index0 }})" max="{{ current_date }}">
+              <label class="fw-bold">Age</label>
+              <input name="child_age_{{ loop.index0 }}" class="form-control mb-2" value="{{ child.age }}" placeholder="Age" readonly>
+              <label class="fw-bold">Gender</label>
+              <select name="child_gender_{{ loop.index0 }}" class="form-control mb-2">
+                <option value="">-- Select --</option>
+                <option value="Male"   {% if child.gender=='Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if child.gender=='Female' %}selected{% endif %}>Female</option>
+                <option value="Other"  {% if child.gender=='Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="total_children" id="total_children" value="{{ employee.children|length }}">
+          <button type="button" class="btn btn-secondary btn-sm mt-1" id="addChildBtn" onclick="addChild()" {% if readonly %}disabled{% endif %}>Add Child</button>
+        </div>
+
+        <!-- PARENTS SECTION (always shown) -->
+        <div id="parentSection" style="display:block; margin-top:1rem;">
+         <!--<h5>Parent Details</h5> --> 
+          <div id="parentList">
+            {% for parent in employee.parents %}
+            <div class="position-relative mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="fw-bold mb-0">{{ parent.relationship }}</label>
+                {% if is_admin %}
+                <button type="button" class="remove-btn" onclick="removeParent(this, '{{ parent.relationship }}')" disabled>🗑️</button>
+                {% endif %}
+              </div>
+              <input type="hidden" name="parent_relationship_{{ loop.index0 }}" value="{{ parent.relationship }}">
+              <input name="parent_name_{{ loop.index0 }}" class="form-control mb-2" value="{{ parent.name }}" placeholder="Name" readonly>
+              <input name="parent_dob_{{ loop.index0 }}" type="date" class="form-control mb-2" value="{{ parent.date_of_birth }}" readonly>
+              <input name="parent_age_{{ loop.index0 }}" class="form-control" value="{{ parent.age }}" placeholder="Age" readonly>
+            </div>
+            {% endfor %}
+          </div>
+          <input type="hidden" name="total_parents" id="total_parents" value="{{ employee.parents|length }}">
+          <button type="button" id="addParentBtn" class="btn btn-secondary btn-sm" style="pointer-events: none; opacity: 0.6; cursor: not-allowed; display:none;">Add Parent</button>
+        </div>
+
+        <!-- SUBMIT BUTTON -->
+        {% if show_submit %}
+        <div class="text-center mt-4">
+            <button type="submit" class="btn btn-primary">
+                Submit Profile
+            </button>
+        </div>
+        {% endif %}
+
+        {% if show_logout %}
+        <div class="text-center mt-4">
+          <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-secondary">Logout</a>
+        </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function calculateAgeFromDob(dobStr) {
+  if (!dobStr) return "";
+  const dob = new Date(dobStr);
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return (age > 0 && !isNaN(age)) ? age : "";
+}
+
+// Employee age calculation
+function updateEmployeeAge() {
+  const dob = document.getElementById("emp_dob").value;
+  document.querySelector("input[name='age']").value = calculateAgeFromDob(dob);
+  const error = document.getElementById("emp-dob-error");
+  let age = calculateAgeFromDob(dob);
+  if (!age || age < 18) {
+    error.style.display = "block";
+  } else {
+    error.style.display = "none";
+  }
+}
+// Spouse age calculation
+function updateSpouseAge() {
+  const dob = document.getElementById("spouse_dob").value;
+  document.querySelector("input[name='spouse_age']").value = calculateAgeFromDob(dob);
+  const error = document.getElementById("spouse-dob-error");
+  let age = calculateAgeFromDob(dob);
+  if (!age || age < 18) {
+    error.style.display = "block";
+  } else {
+    error.style.display = "none";
+  }
+}
+
+// Set required for spouse and children fields
+function setSpouseRequired(isRequired) {
+  ["spouse_name", "spouse_dob", "spouse_gender"].forEach(function(fieldName) {
+    const field = document.querySelector(`[name='${fieldName}']`);
+    if (field) {
+      if (isRequired) field.setAttribute('required', 'required');
+      else field.removeAttribute('required');
+    }
+  });
+}
+function setChildrenRequired(isRequired) {
+  document.querySelectorAll('#childrenList .child-entry').forEach(function(entry) {
+    entry.querySelectorAll('input,select').forEach(function(field) {
+      if (['child_name_', 'child_dob_', 'child_gender_'].some(prefix => field.name && field.name.startsWith(prefix))) {
+        if (isRequired) field.setAttribute('required', 'required');
+        else field.removeAttribute('required');
+      }
+    });
+  });
+}
+
+function toggleFamilyFields() {
+  const s = document.getElementById("marital_status").value;
+  const spouseSection = document.getElementById("spouseSection");
+  const childrenSection = document.getElementById("childrenSection");
+  const addChildBtn = document.getElementById("addChildBtn");
+
+  // Marital status logic
+  if (s === "married") {
+    spouseSection.style.display = "block";
+    childrenSection.style.display = "block";
+    setSpouseRequired(true);
+    setChildrenRequired(document.querySelectorAll('#childrenList .child-entry').length > 0);
+    if (addChildBtn) addChildBtn.style.display = "inline-block";
+  } else if (s === "divorced/widowed") {
+    spouseSection.style.display = "none";
+    childrenSection.style.display = "block";
+    setSpouseRequired(false);
+    setChildrenRequired(document.querySelectorAll('#childrenList .child-entry').length > 0);
+    if (addChildBtn) addChildBtn.style.display = "inline-block";
+    // Clear spouse fields
+    ["spouse_name", "spouse_dob","spouse_age", "spouse_gender"].forEach(n=>{
+      const f = document.querySelector(`[name='${n}']`);
+      if(f) f.value = "";
+      if(n === "spouse_gender" && f) f.selectedIndex = 0;
+    });
+  } else { // unmarried
+    spouseSection.style.display = "none";
+    childrenSection.style.display = "none";
+    setSpouseRequired(false);
+    setChildrenRequired(false);
+    if (addChildBtn) addChildBtn.style.display = "none";
+    // Clear spouse/children fields
+    ["spouse_name", "spouse_dob", "spouse_age", "spouse_gender"].forEach(n=>{
+      const f = document.querySelector(`[name='${n}']`);
+      if(f) f.value = "";
+      if(n === "spouse_gender" && f) f.selectedIndex = 0;
+    });
+    document.getElementById("childrenList").innerHTML = "";
+    updateChildrenCount();
+  }
+}
+window.addEventListener("DOMContentLoaded", () => {
+  // Set DOB max today for all relevant fields
+  const today = new Date().toISOString().split("T")[0];
+  const empDobInput = document.getElementById("emp_dob");
+  if (empDobInput) {
+    empDobInput.max = today;
+    empDobInput.addEventListener("change", updateEmployeeAge);
+    updateEmployeeAge();
+  }
+  const spouseDobInput = document.getElementById("spouse_dob");
+  if (spouseDobInput) {
+    spouseDobInput.max = today;
+    spouseDobInput.addEventListener("change", updateSpouseAge);
+    updateSpouseAge();
+  }
+  document.querySelectorAll("input[type='date'][name^='child_dob_']").forEach(input => {
+    input.max = today;
+  });
+  // Set max for Date of Joining (today)
+  const joiningDateInput = document.getElementById("joiningDate");
+  if (joiningDateInput) {
+    joiningDateInput.max = today;
+  }
+  toggleFamilyFields();
+});
+
+function addChild() {
+  const childrenList = document.getElementById("childrenList");
+  const childCount = childrenList.querySelectorAll(".child-entry").length;
+  if (childCount >= 2) return;
+
+  const today = new Date().toISOString().split("T")[0];
+  const nextIndex = childCount;
+
+  const div = document.createElement("div");
+  div.className = "position-relative mb-3 child-entry";
+
+  div.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <label class="fw-bold mb-0">Child ${nextIndex + 1}</label>
+      <button type="button" class="remove-btn">🗑️</button>
+    </div>
+    <label class="fw-bold">Name</label>
+    <input name="child_name_${nextIndex}" class="form-control mb-2" placeholder="Name">
+    <label class="fw-bold">Date of Birth</label>
+    <input name="child_dob_${nextIndex}" type="date" class="form-control mb-2" max="${today}" onchange="calculateChildAge(this, ${nextIndex})">
+    <label class="fw-bold">Age</label>
+    <input name="child_age_${nextIndex}" class="form-control mb-2" placeholder="Age" readonly>
+    <label class="fw-bold">Gender</label>
+    <select name="child_gender_${nextIndex}" class="form-control mb-2">
+      <option value="">-- Select --</option>
+      <option value="Male">Male</option>
+      <option value="Female">Female</option>
+      <option value="Other">Other</option>
+    </select>
+  `;
+  childrenList.appendChild(div);
+  updateChildrenCount();
+  // If children section is visible and children exist, require children fields
+  const s = document.getElementById("marital_status").value;
+  setChildrenRequired((s === "married" || s === "divorced/widowed") && childrenList.querySelectorAll(".child-entry").length > 0);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  document.getElementById("childrenList").addEventListener("click", function(e) {
+    if (e.target && e.target.classList.contains("remove-btn")) {
+      const childDiv = e.target.closest(".child-entry");
+      if (childDiv) {
+        childDiv.remove();
+        updateChildrenCount();
+        updateChildLabelsAndNames();
+        // If children removed, update required status
+        const s = document.getElementById("marital_status").value;
+        setChildrenRequired((s === "married" || s === "divorced/widowed") && document.querySelectorAll('#childrenList .child-entry').length > 0);
+      }
+    }
+  });
+});
+
+function updateChildrenCount() {
+  const childrenList = document.getElementById("childrenList");
+  const childCount = childrenList.querySelectorAll(".child-entry").length;
+  document.getElementById("total_children").value = childCount;
+  const addBtn = document.getElementById("addChildBtn");
+  if (addBtn) addBtn.disabled = (childCount >= 2);
+}
+
+function updateChildLabelsAndNames() {
+  const childrenList = document.getElementById("childrenList");
+  const entries = Array.from(childrenList.querySelectorAll(".child-entry"));
+  entries.forEach((entry, idx) => {
+    entry.querySelector("label.fw-bold.mb-0").textContent = `Child ${idx + 1}`;
+    entry.querySelector(`input[name^="child_name_"]`).setAttribute("name", `child_name_${idx}`);
+    entry.querySelector(`input[name^="child_dob_"]`).setAttribute("name", `child_dob_${idx}`);
+    entry.querySelector(`input[name^="child_age_"]`).setAttribute("name", `child_age_${idx}`);
+    entry.querySelector(`select[name^="child_gender_"]`).setAttribute("name", `child_gender_${idx}`);
+    entry.querySelector(`input[type="date"]`).setAttribute("onchange", `calculateChildAge(this, ${idx})`);
+  });
+}
+
+function calculateChildAge(dobInput, index) {
+  const dob = new Date(dobInput.value);
+  const today = new Date();
+  const ageField = document.querySelector(`input[name='child_age_${index}']`);
+
+  if (isNaN(dob.getTime()) || dob > today) {
+    ageField.value = "";
+    return;
+  }
+
+  let years = today.getFullYear() - dob.getFullYear();
+  let months = today.getMonth() - dob.getMonth();
+  let days = today.getDate() - dob.getDate();
+
+  if (days < 0) {
+    months -= 1;
+    days += new Date(today.getFullYear(), today.getMonth(), 0).getDate(); // days in previous month
+  }
+
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+
+  // Construct age in words
+  let ageText = "";
+  if (years > 0) {
+    ageText += years + " year" + (years > 1 ? "s" : "");
+    if (months > 0) {
+      ageText += " " + months + " month" + (months > 1 ? "s" : "");
+    }
+  } else if (months > 0) {
+    ageText = months + " month" + (months > 1 ? "s" : "");
+  } else if (days >= 0) {
+    const weeks = Math.floor(days / 7);
+    if (weeks > 0) {
+      ageText = weeks + " week" + (weeks > 1 ? "s" : "");
+    } else {
+      ageText = days + " day" + (days > 1 ? "s" : "");
+    }
+  }
+
+  ageField.value = ageText;
+}
+
+
+// --- FORM VALIDATION BEFORE SUBMIT ---
+document.addEventListener("DOMContentLoaded", function() {
+  document.getElementById("profileForm").addEventListener("submit", function(e) {
+    let valid = true;
+    // Find all fields marked required and visible/enabled
+    this.querySelectorAll("[required]:not([disabled]):not([readonly])").forEach(field => {
+      if (!field.value || field.value.trim() === "") {
+        valid = false;
+        field.classList.add("is-invalid");
+      } else {
+        field.classList.remove("is-invalid");
+      }
+    });
+
+    if (document.getElementById("emp-dob-error").style.display === "block") {
+      valid = false;
+      document.getElementById("emp_dob").classList.add("is-invalid");
+    }
+    if (document.getElementById("spouseSection").style.display !== "none" && 
+        document.getElementById("spouse-dob-error").style.display === "block") {
+      valid = false;
+      document.getElementById("spouse_dob").classList.add("is-invalid");
+    }
+
+    // Children required fields validation (if section visible)
+    if (document.getElementById("childrenSection").style.display !== "none") {
+      const childEntries = document.querySelectorAll("#childrenList .child-entry");
+      childEntries.forEach((entry, idx) => {
+        let childValid = true;
+        ["child_name_", "child_dob_", "child_gender_"].forEach(prefix => {
+          const f = entry.querySelector(`[name^="${prefix}"]`);
+          if (f && (!f.value || f.value === "")) {
+            childValid = false;
+            f.classList.add("is-invalid");
+          } else if (f) {
+            f.classList.remove("is-invalid");
+          }
+        });
+        if (!childValid) valid = false;
+      });
+    }
+
+    // Spouse required fields (if visible)
+    if (document.getElementById("spouseSection").style.display !== "none") {
+      ["spouse_name", "spouse_dob", "spouse_gender"].forEach(n => {
+        const f = this.querySelector(`[name="${n}"]`);
+        if (f && (!f.value || f.value.trim() === "")) {
+          valid = false;
+          f.classList.add("is-invalid");
+        } else if (f) {
+          f.classList.remove("is-invalid");
+        }
+      });
+    }
+
+    // Parents section required fields (if visible)
+    if (document.getElementById("parentSection").style.display !== "none") {
+      const parentEntries = document.querySelectorAll("#parentList .position-relative");
+      parentEntries.forEach(entry => {
+        ["parent_name_", "parent_dob_"].forEach(prefix => {
+          const f = entry.querySelector(`[name^="${prefix}"]`);
+          if (f && (!f.value || f.value === "")) {
+            valid = false;
+            f.classList.add("is-invalid");
+          } else if (f) {
+            f.classList.remove("is-invalid");
+          }
+        });
+      });
+    }
+
+    if (!valid) {
+      e.preventDefault();
+      const firstInvalid = this.querySelector(".is-invalid");
+      if(firstInvalid) firstInvalid.focus();
+      alert("Please fill all required fields correctly before submitting.");
+      return false;
+    }
+    return true;
+  });
+
+  // Remove highlight on input
+  document.querySelectorAll("#profileForm input, #profileForm select").forEach(function(field) {
+    field.addEventListener("input", function() {
+      if (field.classList.contains("is-invalid") && field.value && field.value.trim() !== "") {
+        field.classList.remove("is-invalid");
+      }
+    });
+    field.addEventListener("change", function() {
+      if (field.classList.contains("is-invalid") && field.value && field.value.trim() !== "") {
+        field.classList.remove("is-invalid");
+      }
+    });
+  });
+});
+
+// --- Warn user before leaving if form is dirty and not submitted ---
+let formDirty = false;
+let formSubmitted = false;
+
+document.addEventListener("DOMContentLoaded", function() {
+  const form = document.getElementById("profileForm");
+  // Mark as dirty on any change/input
+  form.querySelectorAll("input,select,textarea").forEach(field => {
+    field.addEventListener("change", () => { formDirty = true; });
+    field.addEventListener("input", () => { formDirty = true; });
+  });
+
+  // Mark as submitted on submit
+  form.addEventListener("submit", function() {
+    formSubmitted = true;
+    formDirty = false; // No warning needed after successful submit
+  });
+
+  // Warn if dirty and not submitted
+  window.addEventListener("beforeunload", function(e) {
+    if (formDirty && !formSubmitted) {
+      e.preventDefault();
+      // Chrome requires returnValue to be set
+      e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
+      return "You have unsaved changes. Are you sure you want to leave?";
+    }
+  });
+});
+</script>
+{% endblock %}
